@@ -190,7 +190,7 @@ namespace KeePass.Forms
 		{
 			IconPickerForm ipf = new IconPickerForm();
 			ipf.InitEx(m_ilClientIcons, (uint)PwIcon.Count, m_pwDatabase,
-				(uint)m_pwIconIndex, m_pwCustomIconID);
+				(uint)m_pwIconIndex, m_pwCustomIconID, null);
 
 			if(ipf.ShowDialog() == DialogResult.OK)
 			{

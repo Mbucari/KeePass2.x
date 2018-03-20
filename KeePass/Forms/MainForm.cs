@@ -1733,10 +1733,14 @@ namespace KeePass.Forms
 			PwEntry[] vEntries = GetSelectedEntries();
 			if((vEntries == null) || (vEntries.Length == 0)) return;
 
+            string strOverrideUrl = null;
+            if (vEntries.Length == 1)
+                strOverrideUrl = vEntries[0].Strings.ReadSafe(PwDefs.UrlField);
+
 			PwDatabase pd = m_docMgr.ActiveDatabase;
 			IconPickerForm ipf = new IconPickerForm();
 			ipf.InitEx(m_ilCurrentIcons, (uint)PwIcon.Count, pd,
-				(uint)vEntries[0].IconId, vEntries[0].CustomIconUuid);
+				(uint)vEntries[0].IconId, vEntries[0].CustomIconUuid, strOverrideUrl);
 
 			bool bSetIcons = (ipf.ShowDialog() == DialogResult.OK);
 			if(bSetIcons)

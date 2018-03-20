@@ -1318,7 +1318,7 @@ namespace KeePass.Forms
 
 			IconPickerForm ipf = new IconPickerForm();
 			ipf.InitEx(m_ilIcons, (uint)PwIcon.Count, m_pwDatabase,
-				(uint)m_pwEntryIcon, m_pwCustomIconID);
+				(uint)m_pwEntryIcon, m_pwCustomIconID, m_tbUrl.Text);
 
 			if(ipf.ShowDialog() == DialogResult.OK)
 			{

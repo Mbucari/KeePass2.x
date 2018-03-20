@@ -46,8 +46,9 @@ namespace KeePass.Forms
 
 		private uint m_uChosenImageID = 0;
 		private PwUuid m_pwChosenCustomImageUuid = PwUuid.Zero;
+        private Uri m_uriOverrideUrl = null;
 
-		public uint ChosenIconId
+        public uint ChosenIconId
 		{
 			get { return m_uChosenImageID; }
 		}
@@ -64,14 +65,29 @@ namespace KeePass.Forms
 		}
 
 		public void InitEx(ImageList ilIcons, uint uNumberOfStandardIcons,
-			PwDatabase pwDatabase, uint uDefaultIcon, PwUuid pwCustomIconUuid)
+			PwDatabase pwDatabase, uint uDefaultIcon, PwUuid pwCustomIconUuid,
+            string strOverrideUrl)
 		{
 			m_ilIcons = ilIcons;
 			m_uNumberOfStandardIcons = uNumberOfStandardIcons;
 			m_pwDatabase = pwDatabase;
 			m_uDefaultIcon = uDefaultIcon;
 			m_pwDefaultCustomIcon = pwCustomIconUuid;
-		}
+
+            if (strOverrideUrl == null)
+                m_btnCustomFavicon.Visible = false;
+            else
+            {
+                try
+                {
+                    m_uriOverrideUrl = new Uri(strOverrideUrl);
+                }
+                catch 
+                {
+                    m_btnCustomFavicon.Visible = false;
+                }
+            }
+        }
 
 		private void OnFormLoad(object sender, EventArgs e)
 		{
@@ -332,7 +348,98 @@ namespace KeePass.Forms
 			sbBuffer.Append(strEnding);
 		}
 
-		private void OnBtnCustomRemove(object sender, EventArgs e)
+        private void OnBtnCustomFavicon(object sender, EventArgs e)
+        {
+            bool bSelectLastIcon = false;
+            bool bUnsupportedFormat = false;
+
+            //Get the favicon from google's scraper
+            UriBuilder uribFaviconUrl = new UriBuilder("https://www.google.com/s2/favicons");
+            uribFaviconUrl.Query = "domain=" + m_uriOverrideUrl.Host;
+            Uri faviconUri = uribFaviconUrl.Uri;
+
+            System.Net.WebClient webFaviconDownload = new System.Net.WebClient();
+
+            try
+            {
+                byte[] bfavIco = webFaviconDownload.DownloadData(faviconUri);
+                                
+                if (IsFaviconGeneric(bfavIco))
+                    throw new System.Net.WebException("Not Found");
+
+                Image img = GfxUtil.LoadImage(bfavIco);
+                if (img == null) throw new FormatException();
+
+                int wMax = PwCustomIcon.MaxWidth;
+                int hMax = PwCustomIcon.MaxHeight;
+                MemoryStream ms = new MemoryStream();
+                if ((img.Width <= wMax) && (img.Height <= hMax))
+                    img.Save(ms, ImageFormat.Png);
+                else
+                {
+                    // Image imgSc = new Bitmap(img, new Size(wMax, hMax));
+                    using (Image imgSc = GfxUtil.ScaleImage(img, wMax, hMax))
+                    {
+                        imgSc.Save(ms, ImageFormat.Png);
+                    }
+                }
+                img.Dispose();
+
+                PwCustomIcon pwci = new PwCustomIcon(new PwUuid(true),
+                    ms.ToArray());
+                m_pwDatabase.CustomIcons.Add(pwci);
+
+                ms.Close();
+
+                m_pwDatabase.UINeedsIconUpdate = true;
+                m_pwDatabase.Modified = true;
+                bSelectLastIcon = true;
+            }
+            catch (ArgumentException)
+            {
+                bUnsupportedFormat = true;
+            }
+            catch (System.Runtime.InteropServices.ExternalException)
+            {
+                bUnsupportedFormat = true;
+            }
+            catch(System.Net.WebException webEx)
+            {
+                System.Net.HttpWebResponse response = (System.Net.HttpWebResponse)webEx.Response;
+                if ((response != null 
+                    && response.StatusCode == System.Net.HttpStatusCode.NotFound) 
+                    || webEx.Message == "Not Found")
+                    MessageService.ShowInfo("No favorite icon at host:", m_uriOverrideUrl.Host);
+                
+                else
+                    MessageService.ShowWarning(webEx);
+            }
+            catch (Exception exImg)
+            {
+                MessageService.ShowWarning(m_uriOverrideUrl.ToString(), exImg);
+            }
+            
+            if (bUnsupportedFormat)
+                MessageService.ShowWarning(m_uriOverrideUrl.ToString(), KPRes.ImageFormatFeatureUnsupported);
+
+            RecreateCustomIconList(bSelectLastIcon);
+
+            EnableControlsEx();
+        }
+
+        private bool IsFaviconGeneric(byte[]  rawFavIcon)
+        {
+            System.Security.Cryptography.MD5 md5Hash = System.Security.Cryptography.MD5.Create();
+            byte[] iconHash = md5Hash.ComputeHash(rawFavIcon);
+
+            string hashString = string.Empty;
+            foreach (byte b in iconHash) hashString += b.ToString("X2");
+
+            //default icon returned by google when site-specific icon not found
+            return hashString == "3CA64F83FDCF25135D87E08AF65E68C9";
+        }
+        
+        private void OnBtnCustomRemove(object sender, EventArgs e)
 		{
 			ListView.SelectedListViewItemCollection lvsicSel = m_lvCustomIcons.SelectedItems;
 			List<PwUuid> vUuidsToDelete = new List<PwUuid>();
